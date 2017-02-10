@@ -34,29 +34,34 @@ class replica(object):
 		return self.database
 
 	def addGame(self, user_id, game):
-		self.database[getUser(user_id)].append(game)
-		checkPrimary()
+		self.database[self.getUser(user_id)].append(game)
+		if checkPrimary():
+			for i in getBackups():
+				i.addGame(user_id, game)
+			print("done")
 		return True
 
 	def getOrderHistory(self, user_id):
-		checkPrimary()
-		return self.database[getUser(user_id)]
+		return self.database[self.getUser(user_id)]
 
 	def cancelOrder(self, user_id, order_id):
-		self.database[getUser(user_id)].pop(order_id)
-		checkPrimary()
+		self.database[self.getUser(user_id)].pop(order_id)
+		if checkPrimary():
+			for i in getBackups():
+				i.cancelOrder(user_id, order_id)
 		return True
 
 	def getUser(self, user_id):
 		if user_id not in self.database:
 			# add user to db
+			print(user_id, "is not in the db.")
+			user_id = str(user_id)
 			self.database[user_id] = []
-		checkPrimary()
+			print(self.database)
+			print("added", user_id, "to the db.")
+		# else:
+			# print(user_id, "is in the db.")
 		return user_id
-	# 
-	# private functions to be called locally
-	#
-
 
 # ------------------------------------
 # Functions to communicate with other servers
@@ -69,19 +74,34 @@ def checkPrimary():
 		# server is a primary server
 		# iterate through all the servers
 		# run the same command on all the servers
-	if 'backup' in metadata:
+	else:
 		return False
 
+def printMemes(memes):
+	return (memes + memes)
 
-
-
-
-
-
-
-
-
-
+def getBackups():
+	print("loading backups list")
+	backups = []
+	backup_servers_ids = ns.list(metadata_all={"backup"})
+	# REMOVE THIS SERVER FROM THE LIST, YOU DON'T WANT AN INFINITE LOOP
+	print("current backup list")
+	print(backup_servers_ids)
+	print("popping servername if it exists")
+	if servername in backup_servers_ids:
+		backup_servers_ids.pop(servername)
+	# print(backup_servers_ids)
+	for i in backup_servers_ids:
+		# print(i)
+		pyroname = "PYRONAME:" + i;
+		# print(pyroname)
+		backup_server = Pyro4.Proxy(pyroname)
+		backups.append(backup_server)
+		# print(backup_server.databasePeek())
+		# print(backup_server)
+	# print(functs)
+	print("backups", backups)
+	return backups
 # ------------------------------------
 
 def checkServerSpace():

@@ -39,7 +39,8 @@ else:
 
 
 # use name server object lookup uri shortcut
-server = Pyro4.Proxy("PYRONAME:" + primary_server)    
+server = Pyro4.Proxy("PYRONAME:" + primary_server)   
+# print(server) 
 
 def placeOrder(user_id, game):
 	# add game
@@ -55,9 +56,9 @@ def cancelOrder(user_id, order_id):
 	server.cancelOrder(user_id, order_id)
 	return True
 
-# server.addGame(1,"s")
+server.addGame(1,"s")
+server.addGame(1,"what da fuc")
 print(server.databasePeek())
-
 # make a loop
 # check if any servers are down
 
