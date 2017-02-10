@@ -56,9 +56,10 @@ def cancelOrder(user_id, order_id):
 	server.cancelOrder(user_id, order_id)
 	return True
 
-server.addGame(1,"s")
-server.addGame(1,"what da fuc")
+server.addGame(1,"Pokemans")
+server.addGame(1,"BattleToads")
 print(server.databasePeek())
+print(server.getOrderHistory(1))
 # make a loop
 # check if any servers are down
 

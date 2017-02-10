@@ -27,6 +27,7 @@ atexit.register(exterminate_server)
 class replica(object):
 	def __init__(self):
 		self.database = {}
+		print("server being poked")
 	# 
 	# public functions to be called by the front end
 	# 
@@ -34,7 +35,10 @@ class replica(object):
 		return self.database
 
 	def addGame(self, user_id, game):
+		print("request to add ", game, "to", user_id)
 		self.database[self.getUser(user_id)].append(game)
+		print(game,"-",user_id, "successful")
+		print(self.database[self.getUser(user_id)])
 		if checkPrimary():
 			for i in getBackups():
 				i.addGame(user_id, game)
@@ -42,22 +46,28 @@ class replica(object):
 		return True
 
 	def getOrderHistory(self, user_id):
+		print("frontend is requesting server history")
 		return self.database[self.getUser(user_id)]
 
 	def cancelOrder(self, user_id, order_id):
+		print("request to remove order", order_id, "from", user_id)
+		print("before",self.database[self.getUser(user_id)] )
 		self.database[self.getUser(user_id)].pop(order_id)
+		print("after", self.database[self.getUser(user_id)])
+		print(order_id, "from", user_id, "removed successfully")
 		if checkPrimary():
 			for i in getBackups():
 				i.cancelOrder(user_id, order_id)
 		return True
 
 	def getUser(self, user_id):
-		if user_id not in self.database:
+		if user_id in self.database:
+			# do nothing
+			return user_id
+		else:
 			# add user to db
 			print(user_id, "is not in the db.")
-			user_id = str(user_id)
 			self.database[user_id] = []
-			print(self.database)
 			print("added", user_id, "to the db.")
 		# else:
 			# print(user_id, "is in the db.")
@@ -81,13 +91,13 @@ def printMemes(memes):
 	return (memes + memes)
 
 def getBackups():
-	print("loading backups list")
+	# print("loading backups list")
 	backups = []
 	backup_servers_ids = ns.list(metadata_all={"backup"})
 	# REMOVE THIS SERVER FROM THE LIST, YOU DON'T WANT AN INFINITE LOOP
-	print("current backup list")
-	print(backup_servers_ids)
-	print("popping servername if it exists")
+	# print("current backup list")
+	# print(backup_servers_ids)
+	# print("popping servername if it exists")
 	if servername in backup_servers_ids:
 		backup_servers_ids.pop(servername)
 	# print(backup_servers_ids)
@@ -100,7 +110,7 @@ def getBackups():
 		# print(backup_server.databasePeek())
 		# print(backup_server)
 	# print(functs)
-	print("backups", backups)
+	# print("backups", backups)
 	return backups
 # ------------------------------------
 
