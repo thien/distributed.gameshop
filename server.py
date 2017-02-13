@@ -130,13 +130,13 @@ class replica(object):
 
 		for backup in backup_servers:
 			# execute query on backup_servers
-			backup_ack = backup.frontEndQuery(uid, data)
+			backup_ack = backup.Query(uid, data)
 			# compute a checksum of the response
 			checksum = hash(frozenset(backup_ack))
 			# add to list
 			checksums.append(checksum)
 			# add to dictionary if it doesn't exist
-			if checksum not in dictionary:
+			if checksum not in checksum_dictionary:
 				checksum_dictionary[checksum] = backup_ack
 		
 		# return most popular checksum.
@@ -214,6 +214,7 @@ def getBackupServerStatus():
 	# needs to be run everytime the server is queried.
 	# loop through the servers in the nameserver
 	# if its not in the backup list, add it.
+	return False
 
 def getBackups():
 	# print("loading backups list")
