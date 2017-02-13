@@ -11,6 +11,8 @@
 import Pyro4
 from Pyro4 import naming
 import random
+import hashlib
+import time
 
 # find the name server
 ns = Pyro4.locateNS()
@@ -37,30 +39,70 @@ else:
 	primary_server = chosen_random_promo
 	print(primary_server, "has been allocated as the primary")
 
-
 # use name server object lookup uri shortcut
 server = Pyro4.Proxy("PYRONAME:" + primary_server)   
 # print(server) 
 
-def placeOrder(user_id, game):
-	# add game
-	server.addGame(user_id, game)
-	return True
+# def placeOrder(user_id, game):
+# 	# add game
+# 	server.addGame(user_id, game)
+# 	return True
 
-# retrieve order history
-def getOrderHistory(user_id):
-	return server.getOrderHistory(user_id)
+# # retrieve order history
+# def getOrderHistory(user_id):
+# 	return server.getOrderHistory(user_id)
 
-# cancel an order
-def cancelOrder(user_id, order_id):
-	server.cancelOrder(user_id, order_id)
-	return True
+# # cancel an order
+# def cancelOrder(user_id, order_id):
+# 	server.cancelOrder(user_id, order_id)
+# 	return True
 
-server.addGame(1,"Pokemans")
-server.addGame(1,"BattleToads")
-print(server.databasePeek())
-print(server.getOrderHistory(1))
+# server.addGame(2,"Sausage McTaffy")
+# server.addGame(1,"Chicken Wings")
+# print(server.databasePeek())
+# print(server.getOrderHistory(1))
+# server.cancelOrder(1,0)
 # make a loop
 # check if any servers are down
 
+# uid is in the form of a md5(datetime + user_id)
+# data is in the form of {user: user_id, request:some_request, data:value}
 
+#req keys: "add", "get_history", "cancel", "peek_db"
+
+# "game" "user" "order_id"
+
+# def hash(msg):
+	# return hashlib.md5(msg.encode()).hexdigest()
+
+
+def queryServer(msg):
+	checksum = str(hash(frozenset(msg)))
+	time_str = str(time.time())
+	uid = hash(time_str + checksum)
+	return server.Query(uid, msg)
+
+user_id = 1
+
+msg = {}
+data = {}
+
+msg["user"] = user_id
+msg['request'] = 'add'
+
+data["game"] = "Battletoads"
+data["order_id"] = 1
+
+msg["data"] = data
+
+resp = queryServer(msg)
+
+print("resp1:",resp['response'])
+
+print("msg1:",resp['message'])
+
+msg['request'] = "get_history"
+
+resp = queryServer(msg)
+
+print("resp2:",resp['response'])

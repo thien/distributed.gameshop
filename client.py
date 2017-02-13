@@ -18,7 +18,6 @@ def generateID():
 	k = m.hexdigest()
 	return k
 
-
 you = generateID()
 
 # place an order
