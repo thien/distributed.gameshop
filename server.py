@@ -1,10 +1,5 @@
 # server
 
-# look for backups
-# check if itself is the primary server or the backups
-# interact with the frontend
-# identify itself uniquely
-
 import Pyro4
 import atexit
 from Pyro4 import naming
@@ -21,31 +16,38 @@ def exterminate_server():
 	ns.remove(servername)
 	daemon.close()
 	print("closed server")
+# append exit handler in the event that the server is closing
 atexit.register(exterminate_server)
 
 # simple database store
 database = {}
-requests = {}
+requests_history = {}
+requests = []
 
-# adding 
+# ------------------------------------
+# Server functions for access with a front-end
+# ------------------------------------
 
 @Pyro4.expose
 class replica(object):
 	def __init__(self):
-		print("Server is being Poked!")
+		print("Server is being poked.")
 		# load data from file
 		# check data integrity with other files
-	# 
-	# public functions to be called by the front end
-	# 
+
+	def requestHandler(self, uid, data):
+		while len(request) > 0:
+			# do something
+			sausage = 1
+		return False
 
 	def Query(self, uid, data):
 		print("server is being queried")
+		requests.append(uid)
 		# uid is in the form of a md5(datetime + user_id)
 		# data is in the form of {user: user_id, request:some_request, data:value}
 		
 		# request options: "add", "get_history", "cancel", "peek_db"
-
 		ack = {}
 
 		# check if the uid has been dealt with before.
@@ -108,14 +110,13 @@ class replica(object):
 				ack['response'] = False
 				ack['message'] = "Error with the request";
 
-			requests[uid] = ack;
+			requests_history[uid] = ack;
 
 			return ack;
 
 		else:
 			print("request has been done before")
-			return requests[uid]
-
+			return requests_history[uid]
 
 	def BackupsHandler(self, primary_ack, uid, data):
 		checksums = [];
@@ -183,20 +184,20 @@ class replica(object):
 
 	def checkRequest(self, uid):
 		print("uid:", uid)
-		if uid in requests:
+		if uid in requests_history:
 			# do nothing
 			print("this request has been filled before.")
-			print(requests)
-			return requests[uid]
+			print(requests_history)
+			return requests_history[uid]
 		else:
 			print("this request has not been filled before.")
 			return False
 
-
 # ------------------------------------
 # Functions to communicate with other servers
+# ------------------------------------
 
-# check metadata for primary
+# check the server's metadata to see whether it is a primary server
 def checkPrimary():
 	metadata = ns.lookup(servername, return_metadata=True)[1]
 	if 'primary' in metadata:
@@ -209,34 +210,33 @@ def checkPrimary():
 def checkServerStatus(server):
 	return False
 
+# update the status of all backup servers
 def getBackupServerStatus():
 	# deal with getting the status of backup servers.
 	# needs to be run everytime the server is queried.
 	# loop through the servers in the nameserver
 	# if its not in the backup list, add it.
+
+	# look at curent servers in list
+	# polled?
 	return False
 
+# get list of objects of backup servers
 def getBackups():
 	# print("loading backups list")
 	backups = []
 	backup_servers_ids = ns.list(metadata_all={"backup"})
-	# REMOVE THIS SERVER FROM THE LIST, YOU DON'T WANT AN INFINITE LOOP
+	# remove itself from the server list.
 	if servername in backup_servers_ids:
 		backup_servers_ids.pop(servername)
 
-
 	for i in backup_servers_ids:
-		# print(i)
 		pyroname = "PYRONAME:" + i;
-		# print(pyroname)
 		backup_server = Pyro4.Proxy(pyroname)
 		backups.append(backup_server)
-		# print(backup_server.databasePeek())
-		# print(backup_server)
 	# print(functs)
 	# print("backups", backups)
 	return backups
-# ------------------------------------
 
 # return list of occupied servers
 def checkServerSpace():
@@ -250,33 +250,34 @@ def checkServerSpace():
 	return occupied
 
 # ------------------------------------
+# Methods below are for initialising the server
+# ------------------------------------
 
+# initialise server #
 serverno = 0;
 
-# make a Pyro daemon
+# make Pyro daemon
 daemon = Pyro4.Daemon()
+
 # find the name server
 ns = Pyro4.locateNS()
 
-# check servers online
-while serverno in checkServerSpace():
-	serverno += 1
+# check other servers in order to allocate server number
+while serverno in checkServerSpace() : serverno += 1
 
 # create server name
 servername = "server" + str(serverno)
-
 print("Loading up " + servername)
-# register the greeting maker as a Pyro object
+
+# register the server as a Pyro object
 uri = daemon.register(replica, servername)
+
 # register the object with a name in the name server
 ns.register(servername, uri, metadata={"backup"})
 
 # find backup servers
 backup_servers = getBackups()
 
-print(servername + " is ready.")
-
-# checkPrimary()
-
 # start the event loop of the server to wait for calls
+print(servername + " is ready.")
 daemon.requestLoop()
