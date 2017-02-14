@@ -7,32 +7,15 @@
 # Collate Responses
 # Make sure client doesnt mess up replicas
 
-# pryo and related imports
+# saved as greeting-client.py
 import Pyro4
 from Pyro4 import naming
 import random
 import hashlib
 import time
 
-# socket and related imports
-from threading import Thread
-from socket import *
-import struct
 
-# ------------------------------------
-# exit handler in the event that the 
-# front end needs to be closed (not a force)
-# ------------------------------------
 
-def exterminate_frontend():
-	"""
-	Exit Handler
-	gracefully removes itself from server.
-	"""
-	socket.close()
-	print("close front end")
-# append exit handler in the event that the front-end is closing
-atexit.register(exterminate_frontend)
 
 # ------------------------------------
 # Methods below are for finding the primary server
@@ -67,8 +50,6 @@ else:
 
 # use name server object lookup uri shortcut
 server = Pyro4.Proxy("PYRONAME:" + primary_server)   
-
-
 
 # ------------------------------------
 # Methods below are for querying the server
@@ -113,68 +94,3 @@ msg['request'] = "get_history"
 # resp = queryServer(msg)
 
 # print("resp2:",resp['response'])
-
-# ------------------------------------
-# socket functions
-# ------------------------------------
-
-def threaded_function(sock):
-	# print(args)
-	password = "shut up"
-	sock.send("password please")
-	# receive password
-	user_entry = sock.recv(1024)
-	if user_entry == password:
-		# print ("access granted")
-		sock.send("1")
-
-		# add socket to list of clients
-		clients[sock] = 0
-		print (clients)
-
-		while clients[sock] < 10:
-			sentence = sock.recv(1024)
-			capitalizedSentence = sentence.upper()
-			sock.send(capitalizedSentence)
-			clients[sock] += 1
-			sleep(0.5)
-
-		sock.send("You've used all your messages. Go away.")
-		# print("kicked " + str(addr) + "; Reason: Used all Messages")
-		del clients[sock];
-		# print (clients)
-		sock.close()
-	else:
-		print (str(addr) + " is denied")
-		sock.send("0")
-		sock.close()
-
-
-# ------------------------------------
-# front-end socket initialisation
-# to be used for a client-frontend
-# connection.
-# ------------------------------------
-
-port = 12036
-multicast_group = ('localhost', port)
-clients = {}
-
-frontend = socket(AF_INET,SOCK_STREAM)
-frontend.settimeout(0.2)
-ttl = struct.pack('b',1)
-frontend.setsockopt(IPPROTO_IP, IP_MULTICAST_TTL, ttl)
-frontend.bind(("", port))
-
-frontend.listen(1)
-print("Front End Server is ready to receive goods.")
-
-
-while 1:
-	# # server waits on accept() for incoming requests, new socket created on return
-	sock, addr = serverSocket.accept()
-	# commence to send goods.. in a thread
-	thread = Thread(target = threaded_function, args=(sock,))
-	thread.start()
-	# thread.join() # blocking statement, can't continue until a thread is executed
-
