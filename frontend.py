@@ -1,12 +1,5 @@
 # Front End
 
-# Make Replication Transparent
-# Interact with Duplicates
-# Maintain the Duplicates
-# Send/Receive to Replicas
-# Collate Responses
-# Make sure client doesnt mess up replicas
-
 # pryo and related imports
 import Pyro4
 from Pyro4 import naming
@@ -14,6 +7,10 @@ import random
 import hashlib
 import time
 import atexit
+
+# general functions
+import core_functions as cf
+import json
 
 # socket and related imports
 from threading import Thread
@@ -30,20 +27,16 @@ def exterminate_frontend():
 	Exit Handler
 	gracefully removes itself from server.
 	"""
-	socket.close(self)
-	print("close front end")
+	try:
+		server_socket.shutdown(1)
+		server_socket.close()
+	except:
+		pass
+
+
+	print("Frontend Server Terminated")
 # append exit handler in the event that the front-end is closing
 atexit.register(exterminate_frontend)
-
-# ------------------------------------
-# Threaded function to run the nameserver.
-# ------------------------------------
-
-def init_nameserver():
-	Pyro4.naming.startNSloop()
-
-n_server = Thread(target = init_nameserver)
-
 
 # ------------------------------------
 # Methods below are for finding the primary server
@@ -57,6 +50,7 @@ ns = Pyro4.locateNS()
 # check if no primary servers
 primary_server = None
 
+# get list of servers
 primary_servers = ns.list(metadata_all={"primary"})
 backup_servers = ns.list(metadata_all={"backup"})
 
@@ -79,113 +73,144 @@ else:
 # use name server object lookup uri shortcut
 server = Pyro4.Proxy("PYRONAME:" + primary_server)   
 
-
-
 # ------------------------------------
 # Methods below are for querying the server
 # ------------------------------------
 
 # uid is in the form of a md5(datetime + user_id)
-# data is in the form of {user: user_id, request:some_request, data:value}
+# data is in the form of 
+# 	{user: user_id, request:some_request, data:value}
 
-#req keys: "add", "get_history", "cancel", "peek_db"
-
-# "game" "user" "order_id"
-
-# def hash(msg):
-	# return hashlib.md5(msg.encode()).hexdigest()
-
+def create_checksum(msg):
+	checksum = str(msg)
+	checksum = cf.hash_msg(checksum)
+	checksum = str(checksum)
+	return checksum
 
 def queryServer(msg):
-	checksum = str(hash(frozenset(msg)))
+	checksum = create_checksum(msg)
 	time_str = str(time.time())
-	uid = hash(time_str + checksum)
+	uid = cf.hash_msg(time_str + checksum)
 	return server.Query(uid, msg)
-
-user_id = 1
-
-msg = {}
-data = {}
-msg["user"] = user_id
-msg['request'] = 'add'
-
-data["game"] = "sausages"
-data["order_id"] = 1
-
-msg["data"] = data
-
-resp = queryServer(msg)
-
-print("resp1:",resp['response'])
-print("msg1:",resp['message'])
-
-msg['request'] = "get_history"
-
-# resp = queryServer(msg)
-
-# print("resp2:",resp['response'])
 
 # ------------------------------------
 # socket functions
 # ------------------------------------
 
-# def threaded_function(sock):
-# 	# print(args)
-# 	password = "shut up"
-# 	sock.send("password please")
-# 	# receive password
-# 	user_entry = sock.recv(1024)
-# 	if user_entry == password:
-# 		# print ("access granted")
-# 		sock.send("1")
+def client_function(sock):
+	# get user id
+	user_id = cf.receive_msg(sock)
+	print(user_id, "connected")
+	# set up variables for interaction
+	msg = {}
+	data = {}
+	resp = 0;
 
-# 		# add socket to list of clients
-# 		clients[sock] = 0
-# 		print (clients)
+	msg["user"] = user_id
 
-# 		while clients[sock] < 10:
-# 			sentence = sock.recv(1024)
-# 			capitalizedSentence = sentence.upper()
-# 			sock.send(capitalizedSentence)
-# 			clients[sock] += 1
-# 			sleep(0.5)
+	# send the ok.
+	cf.send_socket(sock, "ok")
 
-# 		sock.send("You've used all your messages. Go away.")
-# 		# print("kicked " + str(addr) + "; Reason: Used all Messages")
-# 		del clients[sock];
-# 		# print (clients)
-# 		sock.close()
-# 	else:
-# 		print (str(addr) + " is denied")
-# 		sock.send("0")
-# 		sock.close()
+	# wait for receipt of instruction
+	resp = cf.receive_msg(sock)
 
+	if resp:
+		resp = cf.split_req(resp)
+	else:
+		# client is quitting if nothing is sent.
+		resp = ["-1"]
 
-# # ------------------------------------
-# # front-end socket initialisation
-# # to be used for a client-frontend
-# # connection.
-# # ------------------------------------
+	while resp[0] != "-1":
+		print(resp)
+		if resp[0] == "1":
+			# set up message for server
+			msg['request'] = 'add'
+			data["game"] = resp[1]
 
-# port = 12036
-# multicast_group = ('localhost', port)
-# clients = {}
+			# add data to msg
+			msg["data"] = data
+			# send item to the server
+			print(msg)
+			server_resp = queryServer(msg)
+			
+			# print response
+			print("server response:",server_resp['response'])
+			cf.send_socket(sock, "ok")
 
-# frontend = socket(AF_INET,SOCK_STREAM)
-# frontend.settimeout(0.2)
-# ttl = struct.pack('b',1)
-# frontend.setsockopt(IPPROTO_IP, IP_MULTICAST_TTL, ttl)
-# frontend.bind(("", port))
+		elif resp[0] == "2":
+			print("client is asking to view items")
+			# send the okay
+			# set up request to server
+			msg['request'] = "get_history"
+			# send request to server
+			print(msg)
+			server_resp = queryServer(msg)
 
-# frontend.listen(1)
-# print("Front End Server is ready to receive goods.")
+			print("server response:",server_resp['response'])
 
+			server_resp = json.dumps(server_resp['response'])
+			# send server_resp to client
+			cf.send_socket(sock, server_resp)
 
-# while 1:
-# 	# # server waits on accept() for incoming requests, new socket created on return
-# 	sock, addr = serverSocket.accept()
-# 	# commence to send goods.. in a thread
-# 	thread = Thread(target = threaded_function, args=(sock,))
-# 	thread.start()
-# 	# thread.join() # blocking statement, can't continue until a thread is executed
+		elif resp[0] == "3":
+			print("client is asking to remove item")
+			# set up request to server
+			msg['request'] = "cancel"
 
+			# receive the item id to remove
+			item_id = resp[1]
+
+			data["order_id"] = item_id
+			msg["data"] = data
+
+			print(msg)
+			# ask server to remove item_id from user_id
+			server_resp = queryServer(msg)
+
+			print("server response:",server_resp['response'])
+			cf.send_socket(sock, "ok")
+		# resp = cf.receive_msg(sock)
+		elif not resp:
+			print("received null")
+		else:
+			print("what is this?")
+			print("resp:", resp)
+
+		# wait for it again
+		resp = cf.receive_msg(sock)
+
+		if resp:
+			resp = cf.split_req(resp)
+		else:
+			break
+
+	print(user_id, "exited")
+	sock.close()
+
+# ------------------------------------
+# front-end socket initialisation
+# to be used for a client-frontend
+# connection.
+# ------------------------------------
+
+port = 12042
+
+multicast_group = ('localhost', port)
+clients = {}
+
+# create TCP welcoming socket
+server_socket = socket(AF_INET,SOCK_STREAM)
+server_socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1) 
+server_socket.bind(("", port))
+
+# begin listening for incoming TCP requests
+server_socket.listen(1)
+print ('the front end server is ready to receive goods.')
+
+while 1:
+	# # server waits on accept() for incoming requests
+	# new socket created on return
+	sock, addr = server_socket.accept()
+	# commence to interact with client by creating a thread for it.
+	thread = Thread(target = client_function, args=(sock,))
+	thread.start()
