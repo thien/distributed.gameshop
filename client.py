@@ -9,6 +9,7 @@ import core_functions as cf
 
 from socket import *
 import atexit
+import json
 
 # ------------------------------------
 # exit handler in the event that the 
@@ -99,19 +100,24 @@ def addItem():
 		print("theres an error in adding " + req + " to the basket.")
 
 def viewItems():
-	# user requesting to view items
-	print("you viewing yo items")
 
 	# send request to front end
 	cf.send_socket(soc, "2")
 
 	# get response of items
 	resp = cf.receive_msg(soc)
-	print(resp)
+
+	resp = json.loads(resp)
+
+	for i in range(0, len(resp)):
+		print(str(i) + ": " + resp[i])
 
 def cancel():
 	# user requesting to cancel items
-	print("What do you want to cancel?")
+	print("What do you want to cancel? (type in the ID of the item)")
+
+	viewItems()
+
 	cancel_id = input(">")
 	# process it
 

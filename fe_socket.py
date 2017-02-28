@@ -17,6 +17,7 @@ import atexit
 
 # general functions
 import core_functions as cf
+import json
 
 # socket and related imports
 from threading import Thread
@@ -33,45 +34,50 @@ def exterminate_frontend():
 	Exit Handler
 	gracefully removes itself from server.
 	"""
-	serverSocket.shutdown(1)
-	serverSocket.close()
+	try:
+		serverSocket.shutdown(1)
+		serverSocket.close()
+	except:
+		pass
+
+
 	print("Frontend Server Terminated")
 # append exit handler in the event that the front-end is closing
 atexit.register(exterminate_frontend)
 
-# # ------------------------------------
-# # Methods below are for finding the primary server
-# # and allocating one in the event that it doesn't
-# # exist.
-# # ------------------------------------
+# ------------------------------------
+# Methods below are for finding the primary server
+# and allocating one in the event that it doesn't
+# exist.
+# ------------------------------------
 
-# # find the name server
-# ns = Pyro4.locateNS()
+# find the name server
+ns = Pyro4.locateNS()
 
-# # check if no primary servers
-# primary_server = None
+# check if no primary servers
+primary_server = None
 
-# primary_servers = ns.list(metadata_all={"primary"})
-# backup_servers = ns.list(metadata_all={"backup"})
+primary_servers = ns.list(metadata_all={"primary"})
+backup_servers = ns.list(metadata_all={"backup"})
 
-# print("primary servers", primary_servers.keys())
-# print("backup servers", backup_servers.keys())
+print("primary servers", primary_servers.keys())
+print("backup servers", backup_servers.keys())
 
-# if len(primary_servers) is not 0:
-# 	print("theres " + str(len(primary_servers)) + " primary servers")
-# 	if len(primary_servers) is 1:
-# 		primary_server = next (iter (primary_servers.keys()))
-# else:
-# 	print("theres no primary servers..")
-# 	# if none, choose a primary server from one of the backup servers randomly
-# 	chosen_random_promo = random.choice(list(backup_servers.keys()))
-# 	print("random nominated backup:",chosen_random_promo)
-# 	ns.set_metadata(chosen_random_promo, {"primary"})
-# 	primary_server = chosen_random_promo
-# 	print(primary_server, "has been allocated as the primary")
+if len(primary_servers) is not 0:
+	print("theres " + str(len(primary_servers)) + " primary servers")
+	if len(primary_servers) is 1:
+		primary_server = next (iter (primary_servers.keys()))
+else:
+	print("theres no primary servers..")
+	# if none, choose a primary server from one of the backup servers randomly
+	chosen_random_promo = random.choice(list(backup_servers.keys()))
+	print("random nominated backup:",chosen_random_promo)
+	ns.set_metadata(chosen_random_promo, {"primary"})
+	primary_server = chosen_random_promo
+	print(primary_server, "has been allocated as the primary")
 
-# # use name server object lookup uri shortcut
-# server = Pyro4.Proxy("PYRONAME:" + primary_server)   
+# use name server object lookup uri shortcut
+server = Pyro4.Proxy("PYRONAME:" + primary_server)   
 
 
 
@@ -86,29 +92,17 @@ atexit.register(exterminate_frontend)
 
 # # "game" "user" "order_id"
 
-# # def hash(msg):
-# 	# return hashlib.md5(msg.encode()).hexdigest()
+def create_checksum(msg):
+	checksum = str(msg)
+	checksum = cf.hash_msg(checksum)
+	checksum = str(checksum)
+	return checksum
 
-
-# def queryServer(msg):
-# 	checksum = str(hash(frozenset(msg)))
-# 	time_str = str(time.time())
-# 	uid = hash(time_str + checksum)
-# 	return server.Query(uid, msg)
-
-# user_id = 1
-
-# msg = {}
-# data = {}
-# msg["user"] = user_id
-# msg['request'] = 'add'
-
-# data["game"] = "sausages"
-# data["order_id"] = 1
-
-# msg["data"] = data
-
-# resp = queryServer(msg)
+def queryServer(msg):
+	checksum = create_checksum(msg)
+	time_str = str(time.time())
+	uid = cf.hash_msg(time_str + checksum)
+	return server.Query(uid, msg)
 
 # print("resp1:",resp['response'])
 # print("msg1:",resp['message'])
@@ -122,50 +116,6 @@ atexit.register(exterminate_frontend)
 # ------------------------------------
 # socket functions
 # ------------------------------------
-
-def threaded_function(sock):
-	# print(args)
-	password = "shut up"
-
-	# send message saying password plz?
-	sock.send(cf.enc_msg("password plz"))
-
-	# receive password
-	user_entry = cf.receive_msg(sock)
-
-	# sock.send(cf.enc_msg("dankest of memes"))
-
-	if user_entry == password:
-		print ("access granted")
-		# msg = cf.enc_msg("1")
-
-
-		cf.send_socket(sock, "1")
-
-		# add socket to list of clients
-		clients[sock] = 0
-		# print (clients)
-
-		while clients[sock] < 10:
-			sentence = sock.recv(2048)
-			capitalizedSentence = sentence.upper()
-			sock.send(capitalizedSentence)
-			clients[sock] += 1
-			# sleep(0.5)
-
-		msg = cf.enc_msg("You've used all your messages. Go away.")
-		sock.send(msg)
-		# print("kicked " + str(addr) + "; Reason: Used all Messages")
-		del clients[sock];
-		# print (clients)
-		sock.close()
-	else:
-		print(user_entry)
-		print (str(addr) + " is denied")
-		sock.send(cf.enc_msg("9"))
-		sock.close()
-
-
 
 def danker_function(sock):
 	# get user id
@@ -187,8 +137,8 @@ def danker_function(sock):
 	if resp:
 		resp = cf.split_req(resp)
 	else:
-		resp = ["123", "123"]
-		resp[0] = "-1"
+		# client is quitting if nothing is sent.
+		resp = ["-1"]
 
 	while resp[0] != "-1":
 		print(resp)
@@ -201,10 +151,10 @@ def danker_function(sock):
 			msg["data"] = data
 			# send item to the server
 			print(msg)
-			# server_resp = queryServer(msg)
+			server_resp = queryServer(msg)
 			
 			# print response
-			# print("server response:",server_resp['response'])
+			print("server response:",server_resp['response'])
 			cf.send_socket(sock, "ok")
 
 		elif resp[0] == "2":
@@ -214,12 +164,13 @@ def danker_function(sock):
 			msg['request'] = "get_history"
 			# send request to server
 			print(msg)
-			# server_resp = queryServer(msg)
+			server_resp = queryServer(msg)
 
-			# print("server response:",server_resp['response'])
+			print("server response:",server_resp['response'])
 
+			server_resp = json.dumps(server_resp['response'])
 			# send server_resp to client
-			cf.send_socket(sock, "lool what")
+			cf.send_socket(sock, server_resp)
 
 		elif resp[0] == "3":
 			print("client is asking to remove item")
@@ -231,10 +182,12 @@ def danker_function(sock):
 
 			data["order_id"] = item_id
 			msg["data"] = data
-			# ask server to remove item_id from user_id
-			# server_resp = queryServer(msg)
+
 			print(msg)
-			# print("server response:",server_resp['response'])
+			# ask server to remove item_id from user_id
+			server_resp = queryServer(msg)
+			
+			print("server response:",server_resp['response'])
 			cf.send_socket(sock, "ok")
 		# resp = cf.receive_msg(sock)
 		elif not resp:
@@ -253,6 +206,7 @@ def danker_function(sock):
 
 	print(user_id, "exited")
 	sock.close()
+
 # ------------------------------------
 # front-end socket initialisation
 # to be used for a client-frontend

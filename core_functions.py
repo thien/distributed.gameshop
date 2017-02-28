@@ -1,4 +1,6 @@
+import random
 import hashlib as hash
+import time
 
 def enc_msg(msg):
 	return msg.encode()
@@ -23,6 +25,16 @@ def split_req(message):
 	return vals
 
 # ------------------------------------
+# Front End Functions
+# ------------------------------------
+
+def hash_msg(msg):
+	msg = msg.encode('utf-8')
+	msg = hash.md5(msg)
+	msg = msg.hexdigest()
+	return msg
+
+# ------------------------------------
 # Game Shop Functions
 # ------------------------------------
 
@@ -33,3 +45,4 @@ def printBlanks():
 def WelcomeScreen(user_id):
 	print("Welcome, you are user", user_id)
 	print("what do you wanna do?")
+

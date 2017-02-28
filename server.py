@@ -97,7 +97,7 @@ class replica(object):
 		elif data['request'] == "cancel":
 			print(servername,"request: cancellation")
 			# deal with cancellations
-			ack['response'] = self.cancelOrder(data['user'], data[data['order_id']])
+			ack['response'] = self.cancelOrder(data['user'], data['data']['order_id'])
 			ack['message'] = "game is removed";
 			if primary: ack = self.BackupsHandler(ack, uid, data)
 
@@ -185,6 +185,8 @@ class replica(object):
 	def cancelOrder(self, user_id, order_id):
 		# print(servername,"request to remove order", order_id, "from", user_id)
 		# print(servername,"before",database[self.getUser(user_id)] )
+		print("cancelling with:", order_id)
+		order_id = int(order_id)
 		database[self.getUser(user_id)].pop(order_id)
 		# print(servername,"after", database[self.getUser(user_id)])
 		# print(servername,order_id, "from", user_id, "removed successfully")
