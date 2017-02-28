@@ -1,6 +1,6 @@
-# distributed.gameshop
+# Game Shop
 
-A simple Python based Gameshop using Sockets and Distributed Systems
+_A simple Python based Gameshop using Sockets and Distributed Systems_
 
 To run the program, we'll need to start by initialising `nameserver.py` before running our servers.
 

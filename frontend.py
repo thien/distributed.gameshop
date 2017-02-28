@@ -1,5 +1,14 @@
 # Front End
 
+'''
+
+TODO:
+
+- allocate new primary server in the event that it fails.
+- deal with failed backup servers
+
+'''
+
 # pryo and related imports
 import Pyro4
 from Pyro4 import naming
@@ -44,34 +53,70 @@ atexit.register(exterminate_frontend)
 # exist.
 # ------------------------------------
 
-# find the name server
-ns = Pyro4.locateNS()
+def pollServers():
+	# check if no primary servers
+	primary_server = None
 
-# check if no primary servers
-primary_server = None
+	# get list of servers
+	primary_servers = ns.list(metadata_all={"primary"})
+	backup_servers = ns.list(metadata_all={"backup"})
 
-# get list of servers
-primary_servers = ns.list(metadata_all={"primary"})
-backup_servers = ns.list(metadata_all={"backup"})
+	# print("primary servers", primary_servers.keys())
+	# print("backup servers", backup_servers.keys())
 
-print("primary servers", primary_servers.keys())
-print("backup servers", backup_servers.keys())
+	if len(primary_servers) is not 0:
+		print("theres " + str(len(primary_servers)) + " primary servers")
+		if len(primary_servers) > 0:
+			primary_server = next (iter (primary_servers.keys()))
+	else:
+		print("theres no primary servers..")
+		# # if none, choose a primary server from one of the backup servers randomly
+		# chosen_random_promo = random.choice(list(backup_servers.keys()))
+		# # print("random nominated backup:",chosen_random_promo)
+		# ns.set_metadata(chosen_random_promo, {"primary"})
+		# primary_server = chosen_random_promo
+		# print(primary_server, "has been allocated as the primary")
+		primary_server = randomPrimary(backup_servers)
 
-if len(primary_servers) is not 0:
-	print("theres " + str(len(primary_servers)) + " primary servers")
-	if len(primary_servers) is 1:
-		primary_server = next (iter (primary_servers.keys()))
-else:
-	print("theres no primary servers..")
-	# if none, choose a primary server from one of the backup servers randomly
-	chosen_random_promo = random.choice(list(backup_servers.keys()))
+	# use name server object lookup uri shortcut
+	return Pyro4.Proxy("PYRONAME:" + primary_server) 
+
+
+def randomPrimary(backups):
+	chosen_random_promo = random.choice(list(backups.keys()))
 	print("random nominated backup:",chosen_random_promo)
 	ns.set_metadata(chosen_random_promo, {"primary"})
-	primary_server = chosen_random_promo
-	print(primary_server, "has been allocated as the primary")
+	print(chosen_random_promo, "has been allocated as the primary")
+	return chosen_random_promo
 
-# use name server object lookup uri shortcut
-server = Pyro4.Proxy("PYRONAME:" + primary_server)   
+
+def allocate_backup():
+	"""
+	Need to check if the server is still alive.
+	if it is, do nothing
+	if it isn't, choose a backup server and connect to that.
+	"""
+
+	# can't bind; can't reach!
+	print("finding backup to promote to primary")
+	# will need to connect to a backup server.
+	backup_servers = ns.list(metadata_all={"backup"})
+	# will need to connect to a backup server.
+	new_primary_server = randomPrimary(backup_servers)
+
+	return Pyro4.Proxy("PYRONAME:" + new_primary_server) 
+
+
+# ------------------------------------
+# Methods below are for initialising the RMI servers
+# for connection purposes.
+# ------------------------------------
+
+# find the name server
+ns = Pyro4.locateNS()
+# poll the servers.
+global server
+server = pollServers()
 
 # ------------------------------------
 # Methods below are for querying the server
@@ -81,23 +126,32 @@ server = Pyro4.Proxy("PYRONAME:" + primary_server)
 # data is in the form of 
 # 	{user: user_id, request:some_request, data:value}
 
+
 def create_checksum(msg):
 	checksum = str(msg)
 	checksum = cf.hash_msg(checksum)
 	checksum = str(checksum)
 	return checksum
 
-def queryServer(msg):
+def queryServer(msg, server):
 	checksum = create_checksum(msg)
 	time_str = str(time.time())
 	uid = cf.hash_msg(time_str + checksum)
-	return server.Query(uid, msg)
+
+	try:
+		resp = server.Query(uid, msg)
+	except Pyro4.errors.ConnectionClosedError:
+
+		server = allocate_backup()
+		resp = server.Query(uid, msg)
+
+	return resp
 
 # ------------------------------------
 # socket functions
 # ------------------------------------
 
-def client_function(sock):
+def client_function(sock, server):
 	# get user id
 	user_id = cf.receive_msg(sock)
 	print(user_id, "connected")
@@ -131,7 +185,7 @@ def client_function(sock):
 			msg["data"] = data
 			# send item to the server
 			print(msg)
-			server_resp = queryServer(msg)
+			server_resp = queryServer(msg, server)
 			
 			# print response
 			print("server response:",server_resp['response'])
@@ -144,7 +198,7 @@ def client_function(sock):
 			msg['request'] = "get_history"
 			# send request to server
 			print(msg)
-			server_resp = queryServer(msg)
+			server_resp = queryServer(msg, server)
 
 			print("server response:",server_resp['response'])
 
@@ -165,7 +219,7 @@ def client_function(sock):
 
 			print(msg)
 			# ask server to remove item_id from user_id
-			server_resp = queryServer(msg)
+			server_resp = queryServer(msg, server)
 
 			print("server response:",server_resp['response'])
 			cf.send_socket(sock, "ok")
@@ -212,5 +266,5 @@ while 1:
 	# new socket created on return
 	sock, addr = server_socket.accept()
 	# commence to interact with client by creating a thread for it.
-	thread = Thread(target = client_function, args=(sock,))
+	thread = Thread(target = client_function, args=(sock,server))
 	thread.start()

@@ -1,12 +1,9 @@
-# server
-
 import Pyro4
 import atexit
 from Pyro4 import naming
 from Pyro4 import core
 from random import randint
 import re
-
 
 def exterminate_server():
 	"""
@@ -19,19 +16,15 @@ def exterminate_server():
 # append exit handler in the event that the server is closing
 atexit.register(exterminate_server)
 
-
 # backup_servers
 global backup_servers
 backup_servers = []
-
 # simple database store
 database = {}
 # store previous results
 requests_history = {}
-
 # list of items to process
 requests = []
-
 
 # ------------------------------------
 # Server functions for access with a front-end
@@ -40,11 +33,20 @@ requests = []
 @Pyro4.expose
 class replica(object):
 	def __init__(self):
+		"""
+		init()
+
+		actions to perform when the server is being initiated
+		"""
 		print(servername,"Server is being poked.")
-		# load data from file
-		# check data integrity with other files
 
 	def requestHandler(self, uid, data):
+		"""
+		requestHandler():
+
+		handles request according to data.
+		"""
+
 		while len(request) > 0:
 			# get the first item in the requests list.
 			req = requests.pop(0)
@@ -67,10 +69,7 @@ class replica(object):
 
 		print(servername,data)
 		print(servername,"------")
-
 		print(servername,"request:", data['user'])
-		
-
 		print(servername,"dealing with request..")
 		# deal with request
 
@@ -85,7 +84,6 @@ class replica(object):
 			if primary:
 				print(servername,"dealing with backups")
 				ack = self.BackupsHandler(ack, uid, data)
-
 
 		elif data['request'] == "get_history":
 			print(servername,"request: history")
@@ -117,10 +115,17 @@ class replica(object):
 		return ack;
 
 	def Query(self, uid, data):
-		# uid is in the form of a md5(datetime + user_id)
-		# data is in the form of {user: user_id, request:some_request, data:value}
-		
-		# request options: "add", "get_history", "cancel", "peek_db"
+		"""
+
+		Query():
+
+		receives results from the frontend.
+
+		uid is in the form of a md5(datetime + user_id)
+		data is in the form of {user: user_id, request:some_request, data:value}
+		request options: "add", "get_history", "cancel", "peek_db"
+
+		"""
 		
 		print(servername,servername,"server is being queried")
 		requests.append([uid, data])
@@ -172,27 +177,31 @@ class replica(object):
 		return database
 
 	def addGame(self, user_id, game):
-		# print(servername,"request to add ", game, "to", user_id)
+		"""
+		addGame():
+
+		adds a game to a users account.
+		"""
 		database[self.getUser(user_id)].append(game)
-		# print(servername,game,"-",user_id, "successful")
-		# print(servername,database[self.getUser(user_id)])
 		return True
 
 	def getOrderHistory(self, user_id):
-		# print(servername,"frontend is requesting server history")
+		"""
+		getOrderHistory()
+
+		gets a users history.
+		"""
 		return database[self.getUser(user_id)]
 
 	def cancelOrder(self, user_id, order_id):
-		# print(servername,"request to remove order", order_id, "from", user_id)
-		# print(servername,"before",database[self.getUser(user_id)] )
+		"""
+		cancelOrder()
+
+		cancels a user's order using the id.
+		"""
 		print("cancelling with:", order_id)
 		order_id = int(order_id)
 		database[self.getUser(user_id)].pop(order_id)
-		# print(servername,"after", database[self.getUser(user_id)])
-		# print(servername,order_id, "from", user_id, "removed successfully")
-		# if checkPrimary():
-		# 	for i in backup_servers:
-		# 		i.cancelOrder(user_id, order_id)
 		return True
 
 	def getUser(self, user_id):
@@ -227,8 +236,14 @@ class replica(object):
 # Functions to communicate with other servers
 # ------------------------------------
 
-# check the server's metadata to see whether it is a primary server
 def checkPrimary():
+	"""
+	checkPrimary()
+
+	check the server's metadata to see whether
+	it is a primary server.
+
+	"""
 	metadata = ns.lookup(servername, return_metadata=True)[1]
 	if 'primary' in metadata:
 		print(servername,"server is primary")
@@ -237,31 +252,33 @@ def checkPrimary():
 		print(servername,"server is backup")
 		return False
 
-def checkServerStatus(server):
-	return False
-
-# update the status of all backup servers
 def updateBackupServerList(backup_servers):
-	# deal with getting the status of backup servers.
-	# needs to be run everytime the server is queried.
-	# loop through the servers in the nameserver
-	# if its not in the backup list, add it.
+
+	"""
+	updateBackupServerList(backup_servers)
+
+	deal with getting the status of backup servers.
+	needs to be run everytime the server is queried.
+	loop through the servers in the nameserver
+	if its not in the backup list, add it.
+	"""
 
 	# look at curent servers in list
-
 	print("iterating through backup servers")
 	for i in backup_servers:
+
 		# check if you can still connect to them.
 		msg = str(i).replace("Pyro4.core.Proxy at ",'').replace("for", "")
-		print("dealing with", msg)
+
 		try:
+			# if you can bind, you can still connect to it.
 			i._pyroBind()
-			print(msg, "is still connectable.")
 		except:
+			# can't bind; can't reach!
 			print(msg, "is no longer reachable")
 			backup_servers.remove(i)
 
-	print("dealing with backups now")
+	print("dealing with backups")
 	# get new servers in list.
 	fresh_list = getBackups()
 	for i in backup_servers:
@@ -272,47 +289,57 @@ def updateBackupServerList(backup_servers):
 		print(i, "is found, adding to backup list")
 		backup_servers.append(i)
 
-
-# get list of objects of backup servers
 def getBackups():
-	# print(servername,"loading backups list")
+	"""
+	getBackups
+	get list of objects of backup servers
+	"""
+
 	backups = []
 	backup_servers_ids = ns.list(metadata_all={"backup"})
+
 	# remove itself from the server list.
 	if servername in backup_servers_ids:
 		backup_servers_ids.pop(servername)
 
+	# iterate through the backup servers.
 	for i in backup_servers_ids:
 		pyroname = "PYRONAME:" + i;
+		# initialise the connection to the backup server
 		backup_server = Pyro4.Proxy(pyroname)
+		# add server connection to the list
 		backups.append(backup_server)
-	# print(servername,functs)
-	# print(servername,"backups", backups)
+
 	return backups
 
-# return list of occupied servers
 def checkServerSpace():
+	"""
+	checkServerSpace()
+
+	checks the servers online, and gets the
+	ID's of the servers.
+	"""
 	occupied = []
+
 	# need to check servers online
 	for i in ns.list():
 		# check if numbers inside the server name
 		if any(char.isdigit() for char in i):
 			occupied.append(int(re.search(r'\d+', i).group()))
-	# print(servername,"occupied servers:",occupied)
+
 	return occupied
 
 # ------------------------------------
 # Methods below are for initialising the server
 # ------------------------------------
 
-
 def recoverData():
 	# connect to primary server and retrieve database and history
 	# if a primary server hasn't been delegated then retrieve data 
 	# from a backup.
+
 	# from primary server before something else happens.
 	primary_servers = ns.list(metadata_all={"primary"})
-
 
 # ------------------------------------
 # Methods below are for initialising the server
