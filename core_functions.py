@@ -34,6 +34,12 @@ def hash_msg(msg):
 	msg = msg.hexdigest()
 	return msg
 
+def create_checksum(msg):
+	checksum = str(msg)
+	checksum = hash_msg(checksum)
+	checksum = str(checksum)
+	return checksum
+
 # ------------------------------------
 # Game Shop Functions
 # ------------------------------------
