@@ -1,14 +1,5 @@
 # Front End
 
-'''
-
-TODO:
-
-- allocate new primary server in the event that it fails.
-- deal with failed backup servers
-
-'''
-
 # pryo and related imports
 import Pyro4
 from Pyro4 import naming
@@ -61,17 +52,25 @@ class Frontend:
 		time_str = str(time.time())
 		uid = cf.hash_msg(time_str + checksum)
 
+		# [q3] 3. The front end pings the primary server to check whether it is still alive.
+
 		try:
 			resp = self.primary_server.Query(uid, msg)
 
 		except Pyro4.errors.ConnectionClosedError:
 
+			# [q3] 4. In the event that the primary server is down, 
+			# 		  then it will allocate a backup server to be the primary.
+			
 			self.primary_server = self.allocate_backup()
 			resp = self.primary_server.Query(uid, msg)
 
 		return resp
 
 	def pollServers(self):
+		# [q3] 2. A primary server is allocated out of the backups 
+		# 	      through the front end.
+
 		# check if no primary servers
 		prim_server = None
 
@@ -87,15 +86,14 @@ class Frontend:
 			print("theres no primary servers..")
 			# # if none, choose a primary server from one of the backup servers randomly
 			prim_server = self.randomPrimary(b_servers)
+			print(prim_server, "has been allocated as the primary")
 
 		# use name server object lookup uri shortcut
 		return Pyro4.Proxy("PYRONAME:" + prim_server) 
 
 	def randomPrimary(self, backups):
 		chosen_random_promo = random.choice(list(backups.keys()))
-		print("random nominated backup:",chosen_random_promo)
 		self.ns.set_metadata(chosen_random_promo, {"primary"})
-		print(chosen_random_promo, "has been allocated as the primary")
 		return chosen_random_promo
 
 	def allocate_backup(self):
@@ -109,9 +107,9 @@ class Frontend:
 		print("finding backup to promote to primary")
 		# will need to connect to a backup server.
 		b_servers = self.ns.list(metadata_all={"backup"})
-		print("backs", b_servers)
 		# will need to connect to a backup server.
 		self.primary_server = self.randomPrimary(b_servers)
+		print(self.primary_server, "has been allocated as the primary")
 
 		return Pyro4.Proxy("PYRONAME:" + self.primary_server) 
 

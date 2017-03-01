@@ -49,11 +49,6 @@ class replica(object):
 		# execute the query
 		print(servername + ": ","being requested to process information")
 
-		# print("--------- CURENT STATUS OF DB ---------")
-		# print(database)
-		# print("--------- END STATUS OF DB ------------")
-		# the request hasn't been dealt with before.
-
 		# check whether the server is a primary server.
 		primary = checkPrimary();
 
@@ -105,6 +100,7 @@ class replica(object):
 		return ack;
 
 	def ping(self):
+		# simple ping to respond to user that the server is alive.
 		return True
 
 	def Query(self, uid, data):
@@ -391,11 +387,21 @@ print("Loading up " + servername)
 # register the server as a Pyro object
 uri = daemon.register(replica, servername)
 
+# [q3] 1. When the server is initialised, it is configured 
+# 		  by default to be a backup server. 
+#	   5. In the event that a primary server is down and recovers, 
+# 		  it will default to a backup server. 
+
 # register the object with a name in the name server
 ns.register(servername, uri, metadata={"backup"})
 
 # find backup servers
 backup_servers = getNewBackups()
+
+# [q3] 6. Backup servers will check for a primary server to retrieve 
+# 		  the current status of the database from in order to fully 
+# 		  recover. For the sake of modelling, the data is copied in 
+# 		  its entirety. 
 
 # recover data
 database = recoverData()
