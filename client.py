@@ -35,37 +35,6 @@ port = 12042
 soc = socket(AF_INET, SOCK_STREAM)
 soc.connect((servername, port))
 
-# server_message = soc.recv(1024).decode() + ": "
-# password = input(server_message).encode()
-
-# print ("sending to server")
-
-# soc.send(password)
-
-
-# resp = cf.receive_msg(soc)
-# print(resp)
-# if resp == "1":
-# 	for i in range(1,15):
-# 		try:
-# 			sentence = "yo mama so fat that that small things orbit her"
-# 			# no need to attach the server name or the port anymore
-# 			# soc.send(cf.enc_msg(sentence))
-# 			cf.send_socket(soc, sentence)
-# 			modifiedSentence = cf.receive_msg(soc)
-# 			# print(modifiedSentence)
-# 			if modifiedSentence == "You've used all your messages. Go away.":
-# 				# print ('shut up')
-# 				raise
-# 			else:
-# 				print ('from Server: ' + modifiedSentence)
-# 		except:
-# 			print ("You've been kicked out.")
-# 			break
-# else:
-# 	print ("you've been denied, go away")
-
-
 # ------------------------------------
 # Game Shop Functions
 # ------------------------------------
@@ -91,11 +60,13 @@ def addItem():
 
 	# # get response to send
 	resp = cf.receive_msg(soc)
-	print("received an:" + resp)
+
 	# check resp if it's the ok
 	if resp == "ok":
 		# send item name
 		print(req + " has been added your basket.")
+	elif resp == "too_much":
+		print("You can only have at most 3 items. Please remove some.")
 	else:
 		print("theres an error in adding " + req + " to the basket.")
 

@@ -146,19 +146,28 @@ def client_function(sock, frontend):
 	while resp[0] != "-1":
 		print(resp)
 		if resp[0] == "1":
-			# set up message for serv
-			msg['request'] = 'add'
-			data["game"] = resp[1]
+			# check how much dude has already
+			msg['request'] = "get_history"
+			serv_rsp = frontend.queryServer(msg)['response']
+			size = len(serv_rsp)
 
-			# add data to msg
-			msg["data"] = data
-			# send item to the serv
-			print(msg)
-			serv_resp = frontend.queryServer(msg)
-			
-			# print response
-			print("serv response:",serv_resp['response'])
-			cf.send_socket(sock, "ok")
+			if size <= 2:
+				# set up message for serv
+				msg['request'] = 'add'
+				data["game"] = resp[1]
+
+				# add data to msg
+				msg["data"] = data
+				# send item to the serv
+				print(msg)
+				serv_resp = frontend.queryServer(msg)
+				
+				# print response
+				print("serv response:",serv_resp['response'])
+				cf.send_socket(sock, "ok")
+			else:
+				# user has too many items
+				cf.send_socket(sock, "too_much")
 
 		elif resp[0] == "2":
 			print("client is asking to view items")
@@ -172,6 +181,9 @@ def client_function(sock, frontend):
 			print("serv response:",serv_resp['response'])
 
 			serv_resp = json.dumps(serv_resp['response'])
+
+			# cache it locally.
+			users_items = serv_resp
 			# send serv_resp to client
 			cf.send_socket(sock, serv_resp)
 
