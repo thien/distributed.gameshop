@@ -4,6 +4,8 @@ from Pyro4 import naming
 from Pyro4 import core
 from random import randint
 import re
+import core_functions as cf
+import time
 
 def exterminate_server():
 	"""
@@ -338,8 +340,34 @@ def recoverData():
 	# if a primary server hasn't been delegated then retrieve data 
 	# from a backup.
 
+	prim_server = None
+
 	# from primary server before something else happens.
-	primary_servers = ns.list(metadata_all={"primary"})
+	p_servers = ns.list(metadata_all={"primary"})
+
+	if len(p_servers) is not 0:
+		print("theres " + str(len(p_servers)) + " primary servers")
+		if len(p_servers) > 0:
+			prim_server = next (iter (p_servers.keys()))
+
+		conn = Pyro4.Proxy("PYRONAME:" + prim_server) 
+
+		msg = {}
+		msg["user"] = servername
+		msg["request"] = "peek_db"
+
+		checksum = cf.create_checksum(msg)
+		time_str = str(time.time())
+		uid = cf.hash_msg(time_str + checksum)
+
+		resp = conn.Query(uid, msg)
+
+		print(resp)
+
+		data = resp['response']
+
+	else:
+		print("theres no primary servers..")
 
 # ------------------------------------
 # Methods below are for initialising the server
@@ -369,6 +397,9 @@ ns.register(servername, uri, metadata={"backup"})
 
 # find backup servers
 backup_servers = getBackups()
+
+# recover data
+recoverData()
 
 # start the event loop of the server to wait for calls
 print(servername + " is ready.")
