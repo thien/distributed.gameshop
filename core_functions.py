@@ -13,7 +13,7 @@ def send_socket(socket, message):
 	socket.send(enc_msg(message))
 
 def generateID():
-	msg = "hi"
+	msg = str(random.randint(0,900000000))
 	msg = msg.encode('utf-8')
 	m = hash.md5()
 	m.update(msg)
