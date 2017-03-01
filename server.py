@@ -14,7 +14,7 @@ def exterminate_server():
 	"""
 	ns.remove(servername)
 	daemon.close()
-	print(servername,"closed server")
+	print(servername + ": ","closed server")
 # append exit handler in the event that the server is closing
 atexit.register(exterminate_server)
 
@@ -40,74 +40,62 @@ class replica(object):
 
 		actions to perform when the server is being initiated
 		"""
-		print(servername,"Server is being poked.")
-
-	def requestHandler(self, uid, data):
-		"""
-		requestHandler():
-
-		handles request according to data.
-		"""
-
-		while len(request) > 0:
-			# get the first item in the requests list.
-			req = requests.pop(0)
-			uid = req[0]
-			data = req[1]
-		return False
+		print(servername + ": ","Server is being poked.")
 
 	def executeQuery(self, uid, data):
 		# initialise ack
 		ack = {}
 
 		# execute the query
-		print(servername,"this is a new request")
+		print(servername + ": ","being requested to process information")
+
+		# print("--------- CURENT STATUS OF DB ---------")
+		# print(database)
+		# print("--------- END STATUS OF DB ------------")
 		# the request hasn't been dealt with before.
 
 		# check whether the server is a primary server.
 		primary = checkPrimary();
 
-		print(servername,"interpreting data...")
+		print(servername + ": ",data)
 
-		print(servername,data)
-		print(servername,"------")
-		print(servername,"request:", data['user'])
-		print(servername,"dealing with request..")
+		print(servername + ": ","dealing with request..")
 		# deal with request
 
 		if data['request'] == "add":
-			print(servername,"request: add")
+			print(servername + ": ","request: add")
 			# deal with adding
-			print(servername,"creating ack. with user:", data['user'], " and game:", data['data']['game'])
 			ack['response'] = self.addGame(data['user'], data['data']['game'])
 			ack['message'] = "game added";
-			print(servername,"created ack.")
+			print(servername + ": ","created ack. with user:", data['user'], " and game:", data['data']['game'])
+
+			print(database)
 
 			if primary:
-				print(servername,"dealing with backups")
+				ack = self.BackupsHandler(ack, uid, data)
+
+		elif data['request'] == "cancel":
+			print(servername + ": ","request: cancellation")
+			# deal with cancellations
+			ack['response'] = self.cancelOrder(data['user'], data['data']['order_id'])
+			ack['message'] = "game is removed";
+			if primary: 
 				ack = self.BackupsHandler(ack, uid, data)
 
 		elif data['request'] == "get_history":
-			print(servername,"request: history")
+			print(servername + ": ","request: history")
 			# deal with getting history
 			ack['response'] = self.getOrderHistory(data['user'])
 			ack['message'] = "user is requesting history";
 			# ack = BackupsHandler(ack, uid, data)
 
-		elif data['request'] == "cancel":
-			print(servername,"request: cancellation")
-			# deal with cancellations
-			ack['response'] = self.cancelOrder(data['user'], data['data']['order_id'])
-			ack['message'] = "game is removed";
-			if primary: ack = self.BackupsHandler(ack, uid, data)
-
 		elif data['request'] == "peek_db":
-			print(servername,"request: peek")
+			print(servername + ": ","request: peek")
 			ack['response'] = self.databasePeek()
-			ack['message'] = "The database has been seent"
+			ack['message'] = "ok"
 
 		else:
-			print(servername,"unrecognised request, '" + data['request'] + "' is not recognised")
+			print(servername + ": ","unrecognised request, '" + data['request'] + "' is not recognised")
 			# unrecognised request
 			ack['response'] = False
 			ack['message'] = "Error with the request";
@@ -115,6 +103,9 @@ class replica(object):
 		requests_history[uid] = ack;
 
 		return ack;
+
+	def ping(self):
+		return True
 
 	def Query(self, uid, data):
 		"""
@@ -128,21 +119,25 @@ class replica(object):
 		request options: "add", "get_history", "cancel", "peek_db"
 
 		"""
+
+		print("---------------NEW REQUEST-----------------")
 		
-		print(servername,servername,"server is being queried")
 		requests.append([uid, data])
 
 		# check if the uid has been dealt with before.
-		print(servername,"checking if request is new")
+		print(servername + ": ","checking if request is new")
+
 		resp = self.checkRequest(uid)
 
 		if resp is False:
+			# execute query.
 			return self.executeQuery(uid, data)
 		else:
-			print(servername,"request has been done before")
+			print(servername + ": ","request has been done before")
 			return requests_history[uid]
 
 	def BackupsHandler(self, primary_ack, uid, data):
+		print("---------------BACKING UP!-----------------")
 		checksums = [];
 		checksum_dictionary = {}
 
@@ -157,6 +152,9 @@ class replica(object):
 		print("propagating backup servers..")
 		
 		updateBackupServerList(backup_servers)
+
+		print("backup servers found:")
+		print(backup_servers)
 
 		print("looping through backup servers..")
 		for backup in backup_servers:
@@ -212,22 +210,22 @@ class replica(object):
 			return user_id
 		else:
 			# add user to db
-			print(servername,user_id, "is not in the db.")
+			# print(servername + ": ",user_id, "is not in the db.")
 			database[user_id] = []
-			print(servername,"added", user_id, "to the db.")
+			print(servername + ": ","added", user_id, "to the db.")
 		# else:
-			# print(servername,user_id, "is in the db.")
+			# print(servername + ": ",user_id, "is in the db.")
 		return user_id
 
 	def checkRequest(self, uid):
-		print(servername,"uid:", uid)
+		print(servername + ": ","uid:", uid)
 		if uid in requests_history:
 			# do nothing
-			print(servername,"this request has been filled before.")
-			print(servername,requests_history)
+			# print(servername + ": ","this request has been filled before, sending back action")
+			# print(servername + ": ",requests_history)
 			return requests_history[uid]
 		else:
-			print(servername,"this request has not been filled before.")
+			# print(servername + ": ","this request has not been filled before.")
 			return False
 
 	def recoverBackup(self):
@@ -248,10 +246,10 @@ def checkPrimary():
 	"""
 	metadata = ns.lookup(servername, return_metadata=True)[1]
 	if 'primary' in metadata:
-		print(servername,"server is primary")
+		print(servername + ": ","server is primary")
 		return True
 	else:
-		print(servername,"server is backup")
+		print(servername + ": ","server is backup")
 		return False
 
 def updateBackupServerList(backup_servers):
@@ -274,7 +272,7 @@ def updateBackupServerList(backup_servers):
 
 		try:
 			# if you can bind, you can still connect to it.
-			i._pyroBind()
+			i.ping()
 		except:
 			# can't bind; can't reach!
 			print(msg, "is no longer reachable")
@@ -282,7 +280,7 @@ def updateBackupServerList(backup_servers):
 
 	print("dealing with backups")
 	# get new servers in list.
-	fresh_list = getBackups()
+	fresh_list = getNewBackups()
 	for i in backup_servers:
 		if i in fresh_list:
 			fresh_list.remove(i)
@@ -291,9 +289,9 @@ def updateBackupServerList(backup_servers):
 		print(i, "is found, adding to backup list")
 		backup_servers.append(i)
 
-def getBackups():
+def getNewBackups():
 	"""
-	getBackups
+	getNewBackups
 	get list of objects of backup servers
 	"""
 
@@ -362,12 +360,13 @@ def recoverData():
 
 		resp = conn.Query(uid, msg)
 
-		print(resp)
+		print(resp['response'])
 
-		data = resp['response']
+		return resp['response']
 
 	else:
 		print("theres no primary servers..")
+		return {}
 
 # ------------------------------------
 # Methods below are for initialising the server
@@ -396,10 +395,10 @@ uri = daemon.register(replica, servername)
 ns.register(servername, uri, metadata={"backup"})
 
 # find backup servers
-backup_servers = getBackups()
+backup_servers = getNewBackups()
 
 # recover data
-recoverData()
+database = recoverData()
 
 # start the event loop of the server to wait for calls
 print(servername + " is ready.")
