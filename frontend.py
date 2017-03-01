@@ -48,110 +48,79 @@ def exterminate_frontend():
 atexit.register(exterminate_frontend)
 
 # ------------------------------------
-# Methods below are for finding the primary server
-# and allocating one in the event that it doesn't
-# exist.
+# Front End Class
 # ------------------------------------
 
-def pollServers():
-	# check if no primary servers
-	primary_server = None
+class Frontend:
+	def __init__(self):
+		self.ns = Pyro4.locateNS()
+		self.primary_server = self.pollServers()
 
-	# get list of servers
-	primary_servers = ns.list(metadata_all={"primary"})
-	backup_servers = ns.list(metadata_all={"backup"})
+	def queryServer(self, msg):
+		checksum = cf.create_checksum(msg)
+		time_str = str(time.time())
+		uid = cf.hash_msg(time_str + checksum)
 
-	# print("primary servers", primary_servers.keys())
-	# print("backup servers", backup_servers.keys())
+		try:
+			resp = self.primary_server.Query(uid, msg)
 
-	if len(primary_servers) is not 0:
-		print("theres " + str(len(primary_servers)) + " primary servers")
-		if len(primary_servers) > 0:
-			primary_server = next (iter (primary_servers.keys()))
-	else:
-		print("theres no primary servers..")
-		# # if none, choose a primary server from one of the backup servers randomly
-		# chosen_random_promo = random.choice(list(backup_servers.keys()))
-		# # print("random nominated backup:",chosen_random_promo)
-		# ns.set_metadata(chosen_random_promo, {"primary"})
-		# primary_server = chosen_random_promo
-		# print(primary_server, "has been allocated as the primary")
-		primary_server = randomPrimary(backup_servers)
+		except Pyro4.errors.ConnectionClosedError:
 
-	# use name server object lookup uri shortcut
-	return Pyro4.Proxy("PYRONAME:" + primary_server) 
+			self.primary_server = self.allocate_backup()
+			resp = self.primary_server.Query(uid, msg)
 
+		return resp
 
-def randomPrimary(backups):
-	chosen_random_promo = random.choice(list(backups.keys()))
-	print("random nominated backup:",chosen_random_promo)
-	ns.set_metadata(chosen_random_promo, {"primary"})
-	print(chosen_random_promo, "has been allocated as the primary")
-	return chosen_random_promo
+	def pollServers(self):
+		# check if no primary servers
+		prim_server = None
 
+		# get list of servers
+		p_servers = self.ns.list(metadata_all={"primary"})
+		b_servers = self.ns.list(metadata_all={"backup"})
 
-def allocate_backup():
-	"""
-	Need to check if the server is still alive.
-	if it is, do nothing
-	if it isn't, choose a backup server and connect to that.
-	"""
+		if len(p_servers) is not 0:
+			print("theres " + str(len(p_servers)) + " primary servers")
+			if len(p_servers) > 0:
+				prim_server = next (iter (p_servers.keys()))
+		else:
+			print("theres no primary servers..")
+			# # if none, choose a primary server from one of the backup servers randomly
+			prim_server = self.randomPrimary(b_servers)
 
-	# can't bind; can't reach!
-	print("finding backup to promote to primary")
-	# will need to connect to a backup server.
-	backup_servers = ns.list(metadata_all={"backup"})
-	# will need to connect to a backup server.
-	new_primary_server = randomPrimary(backup_servers)
+		# use name server object lookup uri shortcut
+		return Pyro4.Proxy("PYRONAME:" + prim_server) 
 
-	return Pyro4.Proxy("PYRONAME:" + new_primary_server) 
+	def randomPrimary(self, backups):
+		chosen_random_promo = random.choice(list(backups.keys()))
+		print("random nominated backup:",chosen_random_promo)
+		self.ns.set_metadata(chosen_random_promo, {"primary"})
+		print(chosen_random_promo, "has been allocated as the primary")
+		return chosen_random_promo
 
+	def allocate_backup(self):
+		"""
+		Need to check if the server is still alive.
+		if it is, do nothing
+		if it isn't, choose a backup server and connect to that.
+		"""
 
-# ------------------------------------
-# Methods below are for initialising the RMI servers
-# for connection purposes.
-# ------------------------------------
+		# can't bind; can't reach!
+		print("finding backup to promote to primary")
+		# will need to connect to a backup server.
+		b_servers = self.ns.list(metadata_all={"backup"})
+		print("backs", b_servers)
+		# will need to connect to a backup server.
+		self.primary_server = self.randomPrimary(b_servers)
 
-# find the name server
-ns = Pyro4.locateNS()
-# poll the servers.
-global server
-server = pollServers()
+		return Pyro4.Proxy("PYRONAME:" + self.primary_server) 
 
-# ------------------------------------
-# Methods below are for querying the server
-# ------------------------------------
-
-# uid is in the form of a md5(datetime + user_id)
-# data is in the form of 
-# 	{user: user_id, request:some_request, data:value}
-
-
-def create_checksum(msg):
-	checksum = str(msg)
-	checksum = cf.hash_msg(checksum)
-	checksum = str(checksum)
-	return checksum
-
-def queryServer(msg, server):
-	checksum = create_checksum(msg)
-	time_str = str(time.time())
-	uid = cf.hash_msg(time_str + checksum)
-
-	try:
-		resp = server.Query(uid, msg)
-	except Pyro4.errors.ConnectionClosedError:
-
-		server = allocate_backup()
-		resp = server.Query(uid, msg)
-
-	return resp
 
 # ------------------------------------
 # socket functions
 # ------------------------------------
 
-def client_function(sock, server):
+def client_function(sock, frontend):
 	# get user id
 	user_id = cf.receive_msg(sock)
 	print(user_id, "connected")
@@ -177,38 +146,38 @@ def client_function(sock, server):
 	while resp[0] != "-1":
 		print(resp)
 		if resp[0] == "1":
-			# set up message for server
+			# set up message for serv
 			msg['request'] = 'add'
 			data["game"] = resp[1]
 
 			# add data to msg
 			msg["data"] = data
-			# send item to the server
+			# send item to the serv
 			print(msg)
-			server_resp = queryServer(msg, server)
+			serv_resp = frontend.queryServer(msg)
 			
 			# print response
-			print("server response:",server_resp['response'])
+			print("serv response:",serv_resp['response'])
 			cf.send_socket(sock, "ok")
 
 		elif resp[0] == "2":
 			print("client is asking to view items")
 			# send the okay
-			# set up request to server
+			# set up request to serv
 			msg['request'] = "get_history"
-			# send request to server
+			# send request to serv
 			print(msg)
-			server_resp = queryServer(msg, server)
+			serv_resp = frontend.queryServer(msg)
 
-			print("server response:",server_resp['response'])
+			print("serv response:",serv_resp['response'])
 
-			server_resp = json.dumps(server_resp['response'])
-			# send server_resp to client
-			cf.send_socket(sock, server_resp)
+			serv_resp = json.dumps(serv_resp['response'])
+			# send serv_resp to client
+			cf.send_socket(sock, serv_resp)
 
 		elif resp[0] == "3":
 			print("client is asking to remove item")
-			# set up request to server
+			# set up request to serv
 			msg['request'] = "cancel"
 
 			# receive the item id to remove
@@ -218,10 +187,10 @@ def client_function(sock, server):
 			msg["data"] = data
 
 			print(msg)
-			# ask server to remove item_id from user_id
-			server_resp = queryServer(msg, server)
+			# ask serv to remove item_id from user_id
+			serv_resp = frontend.queryServer(msg)
 
-			print("server response:",server_resp['response'])
+			print("serv response:",serv_resp['response'])
 			cf.send_socket(sock, "ok")
 		# resp = cf.receive_msg(sock)
 		elif not resp:
@@ -261,10 +230,12 @@ server_socket.bind(("", port))
 server_socket.listen(1)
 print ('the front end server is ready to receive goods.')
 
+frontend = Frontend()
+
 while 1:
 	# # server waits on accept() for incoming requests
 	# new socket created on return
 	sock, addr = server_socket.accept()
 	# commence to interact with client by creating a thread for it.
-	thread = Thread(target = client_function, args=(sock,server))
+	thread = Thread(target = client_function, args=(sock,frontend))
 	thread.start()
