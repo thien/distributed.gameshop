@@ -52,23 +52,29 @@ def initialiseShop():
 		print("what do you wanna do?")
 
 def addItem():
-	print("what do you wanna add?")
-	req = input(">")
-	
-	# send request to front end
-	cf.send_socket(soc, "1:" + req)
-
-	# # get response to send
-	resp = cf.receive_msg(soc)
-
-	# check resp if it's the ok
-	if resp == "ok":
-		# send item name
-		print(req + " has been added your basket.")
-	elif resp == "too_much":
-		print("You can only have at most 3 items. Please remove some.")
+	# print("what do you wanna add?")
+	order = getItems()
+	if len(order) == 0:
+		# do nothing
+		print("You didn't add anything.")
 	else:
-		print("theres an error in adding " + req + " to the basket.")
+		# convert result into string
+		order = str(order)
+	
+		# send request to front end
+		cf.send_socket(soc, "1:" + order)
+
+		# # get response to send
+		resp = cf.receive_msg(soc)
+
+		# check resp if it's the ok
+		if resp == "ok":
+			# send item name
+			print("Your orders have been processed successfully.")
+		elif resp == "too_much":
+			print("You can only have at most 3 items. Please remove some.")
+		else:
+			print("theres an error in adding your order to the basket.")
 
 def viewItems():
 
@@ -123,6 +129,21 @@ def interpretUserInput(resp):
 		check = True
 
 	return check
+
+def getItems():
+	check = False
+	items = []
+	while check is False:
+		item_count = len(items)
+		print("What would you like to add? (Or type 'done' to finish)")
+		item = input(str(item_count+1) + "/3 >")
+		if item == 'done':
+			check = True
+		else:
+			items.append(item)
+		if len(items) == 3:
+			check = True
+	return items
 
 # ------------------------------------
 # Initialise Client Program
