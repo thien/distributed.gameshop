@@ -49,7 +49,8 @@ def initialiseShop():
 		# get input
 		quit = interpretUserInput(resp)
 		print("---------")
-		print("what do you wanna do?")
+		print("what would you like to do?")
+		print("options: 'add', `view, `cancel`, 'quit'")
 
 def addItem():
 	# print("what do you wanna add?")
@@ -107,7 +108,7 @@ def cancel():
 
 	# check resp if it's the ok
 	if resp == "ok":
-		print("item", cancel_id, "has been removed from your basket.");
+		print("order", cancel_id, "has been removed from your basket.");
 	else:
 		print("something bad happened")
 
@@ -122,7 +123,7 @@ def interpretUserInput(resp):
 			cancel()
 		else:
 			cf.printBlanks()
-			print("you wot?")
+			print("Sorry, I didn't understand that.")
 			print("--------")
 			cf.WelcomeScreen(you)
 	else:

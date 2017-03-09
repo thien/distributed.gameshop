@@ -50,5 +50,5 @@ def printBlanks():
 
 def WelcomeScreen(user_id):
 	print("Welcome, you are user", user_id)
-	print("what do you wanna do?")
-
+	print("what would you like to do?")
+	print("options: 'add', `view, `cancel`, 'quit'")
